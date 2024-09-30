@@ -28,12 +28,13 @@ jobs:
               with:
                   node-version: ${{ matrix.node-version }}
                   cache: 'pnpm'
+                  registry-url: https://registry.npmjs.org
 
             - name: Install dependencies
-              run: pnpm install
-
-            - name: Run tests
-              run: pnpm test
+              run: pnpm install --frozen-lockfile
 
             - name: Build project
               run: pnpm build
+
+            - name: Run tests
+              run: pnpm test
