@@ -1,0 +1,72 @@
+{
+    "name": "@nokya/aya",
+    "version": "0.1.0",
+    "description": "the best logging library in the entire worldddddd!!1",
+    "type": "module",
+    "author": {
+        "name": "nokya",
+        "url": "https://github.com/n0ky4"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/n0ky4/log"
+    },
+    "bugs": {
+        "url": "https://github.com/n0ky4/log/issues"
+    },
+    "homepage": "https://github.com/n0ky4/log#readme",
+    "license": "MIT",
+    "keywords": [
+        "logging",
+        "logger",
+        "log",
+        "console"
+    ],
+    "main": "dist/index.js",
+    "module": "dist/index.mjs",
+    "types": "dist/index.d.ts",
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "build": "tsup",
+        "dev": "tsup --watch",
+        "test": "vitest run",
+        "prettier": "prettier --write .",
+        "prepare": "husky",
+        "lint": "eslint",
+        "lint:fix": "eslint --fix"
+    },
+    "lint-staged": {
+        "**/*": [
+            "prettier --write"
+        ],
+        "**/*.ts": [
+            "eslint --fix"
+        ]
+    },
+    "dependencies": {
+        "axios": "^1.7.7",
+        "chalk": "^4.1.2",
+        "deepmerge": "^4.3.1",
+        "filesize-parser": "^1.5.1",
+        "zod": "^3.23.8"
+    },
+    "devDependencies": {
+        "@eslint/js": "^9.11.1",
+        "@types/filesize-parser": "^1.5.3",
+        "@types/node": "^22.7.4",
+        "eslint": "^9.11.1",
+        "globals": "^15.9.0",
+        "husky": "^9.1.6",
+        "lint-staged": "^15.2.10",
+        "memfs": "^4.12.0",
+        "prettier": "3.3.3",
+        "tsup": "^8.3.0",
+        "tsx": "^4.19.1",
+        "typescript": "^5",
+        "typescript-eslint": "^8.7.0",
+        "vite-tsconfig-paths": "^5.0.1",
+        "vitest": "^2.1.1"
+    }
+}
