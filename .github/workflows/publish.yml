@@ -26,18 +26,19 @@ jobs:
               with:
                   node-version: ${{ matrix.node-version }}
                   cache: 'pnpm'
+                  registry-url: https://registry.npmjs.org
 
             - name: Install dependencies
               run: pnpm install
 
-            - name: Run tests
-              run: pnpm test
-
             - name: Build project
               run: pnpm build
+
+            - name: Run tests
+              run: pnpm test
 
             - name: Publish to npm
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
               run: |
-                  npm publish
+                  pnpm publish --access public --no-git-checks
