@@ -2,7 +2,7 @@ import { choose, l, tryToRemovePrefixDelimiters } from '@/core/common.js'
 import LoggerPlugin from '@/core/plugin.js'
 import axios from 'axios'
 import { inspect } from 'node:util'
-import Logger from '../..'
+import Logger, { InternalSettings } from '../..'
 import { discordWebhookOptionsSchema } from './options'
 import QueueManager from './queue'
 import {
@@ -40,7 +40,7 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
     private doNotLogSpecialMessage = 'doNotSendToDiscord'
     private smkey: string = ''
 
-    private internalSettings = this.exposedMethods.getInternalSettings()
+    private internalSettings!: InternalSettings
 
     constructor(settings: InferedDiscordWebhookOptions, queueManager: QueueManager) {
         super()
@@ -50,6 +50,8 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
 
     private setup = () => {
         l.info('DiscordWebhookPlugin created')
+
+        this.internalSettings = this.exposedMethods.getInternalSettings()
         this.exposedMethods.addSpecialMessage(this.doNotLogSpecialMessage)
         this.smkey = this.exposedMethods.getSpecialMessage(this.doNotLogSpecialMessage)
 
