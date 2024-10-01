@@ -3,8 +3,8 @@ import path from 'path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import Logger from '../src'
 
-import { sleep } from '@/core/common'
 import fs from 'node:fs'
+import { sleep } from '../src/core/common'
 const promises = fs.promises
 
 describe('Logger FileSystem', () => {
@@ -38,7 +38,7 @@ describe('Logger FileSystem', () => {
         logger.info('Test log message')
         expect(fs.existsSync(DIR)).toBe(true)
 
-        logger.finalize()
+        logger['finalize']()
 
         await sleep(100)
         const files = await promises.readdir(DIR)
@@ -57,7 +57,7 @@ describe('Logger FileSystem', () => {
             logger.info('A very large log message '.repeat(50))
         }
 
-        logger.finalize()
+        logger['finalize']()
 
         await sleep(100)
         const logFiles = await promises.readdir(DIR)

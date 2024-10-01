@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Logger from '../src'
-import { __LOG_INTERNAL__ } from '../src/core/common'
 import LoggerPlugin from '../src/core/plugin'
 
 describe('Logger', () => {
@@ -11,8 +10,11 @@ describe('Logger', () => {
 
     describe('filterSpecialMessages', () => {
         it('should filter out special messages', () => {
-            const messages = ['normal message', __LOG_INTERNAL__.specialMessagesKeys[0]]
+            logger['addSpecialMessage']('special message')
+
+            const messages = ['normal message', logger['getSpecialMessage']('special message')]
             const filteredMessages = logger['filterSpecialMessages'](messages)
+
             expect(filteredMessages).toEqual(['normal message'])
         })
     })
@@ -32,12 +34,7 @@ describe('Logger', () => {
     describe('use', () => {
         it('should apply a plugin correctly', () => {
             class TestPlugin extends LoggerPlugin {
-                constructor() {
-                    super({
-                        name: 'TestPlugin'
-                    })
-                }
-
+                name = 'TestPlugin'
                 init(): Logger {
                     if (!this.logger) throw new Error('Logger not initialized')
                     console.log('Hello from TestPlugin')
@@ -49,7 +46,9 @@ describe('Logger', () => {
             const spy = vi.spyOn(plugin, 'apply')
 
             logger.use(plugin)
-            expect(spy).toHaveBeenCalledWith(logger)
+
+            expect(spy).toHaveBeenCalled()
+            expect(logger['plugins']).toContain(plugin)
         })
 
         it('should throw an error if plugin is not an instance of LoggerPlugin', () => {

@@ -1,5 +1,5 @@
-import { sleep } from '@/core/common'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { sleep } from '../src/core/common'
 import Logger from './../src/index'
 import { discordWebhook, DiscordWebhookPlugin } from './../src/plugins/discordWebhook'
 import { DiscordWebhookOptions } from './../src/plugins/discordWebhook/types'
@@ -16,19 +16,16 @@ describe('DiscordWebhookPlugin', () => {
             avatarUrl: 'https://example.com/avatar.png',
             showLoadMessage: true
         }
-        logger = new Logger() // Initialize your logger instance
+        logger = new Logger()
     })
 
-    afterEach(() => {
-        vi.clearAllMocks() // Clears mocks after each test
-    })
-
-    const getPlugin = () => logger['plugins'][0] as DiscordWebhookPlugin
+    const getPlugin = () => logger['plugins'][0] as unknown as DiscordWebhookPlugin
 
     it('should initialize correctly using logger.use with valid settings', () => {
-        logger.use(discordWebhook(settings)) // Use the plugin via logger.use()
+        logger.use(discordWebhook(settings))
 
         const plugin = getPlugin()
+
         expect(plugin['enabled']).toBe(true)
         expect(plugin['enabledLevels']).toContain('warn')
         expect(plugin['enabledLevels']).toContain('error')
@@ -60,10 +57,12 @@ describe('DiscordWebhookPlugin', () => {
         const plugin = getPlugin()
         const batchMessageSpy = vi.spyOn(plugin as any, 'batchMessage')
 
-        logger.error(['Error message'])
+        logger.error('Error message')
+        logger.error('Error message')
+        logger.error('Error message')
 
         expect(batchMessageSpy).toHaveBeenCalled()
-        expect(plugin['batchMessages'].length).toBe(1)
+        expect(plugin['batchMessages'].length).toBe(3)
     })
 
     it('should process batch messages correctly', async () => {
@@ -87,6 +86,8 @@ describe('DiscordWebhookPlugin', () => {
         logger.error('Test error message')
 
         await sleep(2000)
+
+        expect(plugin['enabled']).toBe(false)
         expect(spy).toHaveBeenCalled()
     })
 
