@@ -16,7 +16,7 @@ jobs:
         strategy:
             matrix:
                 languages:
-                    - typescript-javascript
+                    - javascript-typescript
                 os:
                     - ubuntu-latest
         runs-on: ${{ matrix.os }}
