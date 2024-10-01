@@ -19,7 +19,8 @@
         "logging",
         "logger",
         "log",
-        "console"
+        "console",
+        "pretty"
     ],
     "main": "dist/index.js",
     "module": "dist/index.mjs",
@@ -37,10 +38,10 @@
         "lint:fix": "eslint --fix"
     },
     "lint-staged": {
-        "**/*": [
+        "**/*.{ts,js,json}": [
             "prettier --write"
         ],
-        "**/*.ts": [
+        "**/*.{ts,js}": [
             "eslint --fix"
         ]
     },
