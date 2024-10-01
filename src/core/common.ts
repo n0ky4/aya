@@ -6,6 +6,7 @@ interface __LOG_INTERNAL__ {
         doNotSendToDiscord: string
     }
     excludeInspectTypes: string[]
+    toInspectJsonFormat: string[]
     inspectConfig: {
         depth: number
         maxArrayLength: number
@@ -21,6 +22,7 @@ const __LOG_INTERNAL__: __LOG_INTERNAL__ = {
     },
     specialMessagesKeys: [],
     excludeInspectTypes: ['string'],
+    toInspectJsonFormat: ['bigint', 'symbol', 'function'],
     inspectConfig: {
         depth: 2,
         maxArrayLength: 10,

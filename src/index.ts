@@ -202,7 +202,10 @@ export class Logger {
     }
 
     private filterSpecialMessages(messages: unknown[]) {
-        return messages.filter((m: any) => !__LOG_INTERNAL__.specialMessagesKeys.includes(m))
+        return messages.filter((m: any) => {
+            if (typeof m !== 'string') return true
+            return !__LOG_INTERNAL__.specialMessagesKeys.includes(m)
+        })
     }
 
     private parseMessage(messages: unknown[]) {
@@ -241,32 +244,40 @@ export class Logger {
 
     private log(level: LoggerLevel, messages: unknown[]) {
         const { levels, format, logFormat, levelPrefixes, prefix, colors, boldLevel } = this.cfg
+
         if (!levels.includes(level)) return
 
-        const lvl = levelPrefixes[level]
-
         this.logToFile(level, messages)
-        const parsedMessage = this.parseMessage(this.filterSpecialMessages(messages))
-
-        let msg: string = logFormat
-            .replaceAll('{prefix}', chalk[colors.prefix](prefix))
-            .replaceAll(
-                '{level}',
-                boldLevel ? chalk.bold(chalk[colors[level]](lvl)) : chalk[colors[level]](lvl)
-            )
-            .replaceAll('{message}', parsedMessage)
-
-        if (this.useTimestamp) msg = msg.replaceAll('{timestamp}', this.getFormattedDate())
 
         if (format === 'json') {
-            console.log(
-                JSON.stringify({
-                    level,
-                    messages: this.filterSpecialMessages(messages),
-                    timestamp: new Date().toISOString()
-                })
-            )
+            const stringified = JSON.stringify({
+                level,
+                messages: this.filterSpecialMessages(messages).map((x) => {
+                    if (__LOG_INTERNAL__.toInspectJsonFormat.includes(typeof x))
+                        return inspect(x, {
+                            ...__LOG_INTERNAL__.inspectConfig,
+                            colors: false
+                        })
+                    return x
+                }),
+                timestamp: new Date().toISOString()
+            })
+
+            console.log(stringified)
         } else {
+            const lvl = levelPrefixes[level]
+            const parsedMessage = this.parseMessage(this.filterSpecialMessages(messages))
+
+            let msg: string = logFormat
+                .replaceAll('{prefix}', chalk[colors.prefix](prefix))
+                .replaceAll(
+                    '{level}',
+                    boldLevel ? chalk.bold(chalk[colors[level]](lvl)) : chalk[colors[level]](lvl)
+                )
+                .replaceAll('{message}', parsedMessage)
+
+            if (this.useTimestamp) msg = msg.replaceAll('{timestamp}', this.getFormattedDate())
+
             switch (level) {
                 case 'error':
                     this.em.emit('error', messages)
