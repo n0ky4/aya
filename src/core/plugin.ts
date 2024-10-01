@@ -1,20 +1,26 @@
-import Logger from '..'
+import Logger, { InferedConfigSchema, InternalSettings } from '..'
+
+export type PluginExposedMethods = {
+    addSpecialMessage: (message: string) => void
+    hasSpecialMessage: (specialMessage: string, messages: unknown[]) => boolean
+    getSpecialMessage: (specialMessage: string) => string
+    filterSpecialMessages: (messages: unknown[]) => unknown[]
+    getConfig: () => InferedConfigSchema
+    getInternalSettings: () => InternalSettings
+}
 
 export default class LoggerPlugin {
-    name: string
-    logger: Logger | undefined = undefined
+    name: string = 'MyPlugin'
+    protected logger!: Logger
+    protected exposedMethods!: PluginExposedMethods
 
-    constructor(options: { name: string }) {
-        this.name = options.name
+    apply(logger: Logger, exposedMethods: PluginExposedMethods): Logger {
+        this.logger = logger
+        this.exposedMethods = exposedMethods
+        return this.init()
     }
 
     protected init(): Logger {
-        if (!this.logger) throw new Error('Logger not initialized')
         return this.logger
-    }
-
-    apply(logger: Logger): Logger {
-        this.logger = logger
-        return this.init()
     }
 }

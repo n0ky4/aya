@@ -1,4 +1,4 @@
-import { __LOG_INTERNAL__, choose, l, tryToRemovePrefixDelimiters } from '@/core/common.js'
+import { choose, l, tryToRemovePrefixDelimiters } from '@/core/common.js'
 import LoggerPlugin from '@/core/plugin.js'
 import axios from 'axios'
 import { inspect } from 'node:util'
@@ -13,6 +13,9 @@ import {
 } from './types'
 
 export const GLOBAL_INTERVAL = 1000
+
+// add a global queue manager, because maybe the user wants to use multiple logger instances,
+// and if we create a new queue manager for each instance, we could get rate limited by Discord api
 const queueManager = new QueueManager(GLOBAL_INTERVAL)
 
 interface BatchedMessage {
@@ -21,6 +24,8 @@ interface BatchedMessage {
 }
 
 export class DiscordWebhookPlugin extends LoggerPlugin {
+    name: string = 'DiscordWebhook'
+
     private settings: DiscordWebhookOptions
     private enabled = true
     private enabledLevels: string[] = []
@@ -30,26 +35,27 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
     private processing = false
     private processingInterval: NodeJS.Timeout | null = null
 
+    // add a special message to the logger to prevent logging to Discord.
+    // it's useful to avoid infinite loops when an error ocurred in this Discord plugin.
+    private doNotLogSpecialMessage = 'doNotSendToDiscord'
+    private smkey: string = ''
+
+    private internalSettings = this.exposedMethods.getInternalSettings()
+
     constructor(settings: InferedDiscordWebhookOptions, queueManager: QueueManager) {
-        super({
-            name: 'DiscordWebhook'
-        })
+        super()
         this.qmanager = queueManager
         this.settings = settings
     }
 
-    private ensureLogger = (): Logger => {
-        if (!this.logger) throw new Error('Logger not initialized')
-        return this.logger as Logger
-    }
-
     private setup = () => {
-        const logger = this.ensureLogger()
         l.info('DiscordWebhookPlugin created')
+        this.exposedMethods.addSpecialMessage(this.doNotLogSpecialMessage)
+        this.smkey = this.exposedMethods.getSpecialMessage(this.doNotLogSpecialMessage)
 
         if (!this.settings.levels || !this.settings.levels.length) {
-            logger.error(
-                __LOG_INTERNAL__.internalPrefix,
+            this.logger.error(
+                this.internalSettings.internalPrefix,
                 'No levels specified in Discord plugin, disabling it'
             )
             this.enabled = false
@@ -70,28 +76,29 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
         return choose(this.settings.avatarUrl) || undefined
     }
 
-    private shouldLog = (msgs: unknown[]) =>
-        !msgs.includes(__LOG_INTERNAL__.specialMessages.doNotSendToDiscord)
+    private shouldLog = (messages: unknown[]): boolean => {
+        return !this.exposedMethods.hasSpecialMessage(this.doNotLogSpecialMessage, messages)
+    }
 
     private getCommonSettings = () => {
-        const logger = this.ensureLogger()
         return {
             logger: this.logger,
             url: this.settings.url,
-            username: this.settings.username || tryToRemovePrefixDelimiters(logger.settings.prefix)
+            username:
+                this.settings.username ||
+                tryToRemovePrefixDelimiters(this.exposedMethods.getConfig().prefix)
         }
     }
 
     private disableWebhook = () => {
-        if (!this.logger) throw new Error('Logger not initialized')
+        if (!this.enabled) return
 
-        if (this.enabled) {
-            this.logger.error(
-                __LOG_INTERNAL__.internalPrefix,
-                'Invalid Discord webhook URL, disabling plugin'
-            )
-            this.enabled = false
-        }
+        this.logger.error(
+            this.internalSettings.internalPrefix,
+            'Invalid Discord webhook URL, disabling plugin',
+            this.smkey
+        )
+        this.enabled = false
     }
 
     private getWarnEmbedModel = (): EmbedModelType => ({
@@ -116,7 +123,7 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
         const embeds: EmbedType[] = []
         let msgs = messages
             .map((msg) => {
-                if (!__LOG_INTERNAL__.excludeInspectTypes.includes(typeof msg)) {
+                if (!this.internalSettings.excludeInspectTypes.includes(typeof msg)) {
                     const inspected = inspect(msg)
                     msg = typeof msg === 'object' ? ['```json', inspected, '```'].join('\n') : msg
                 }
@@ -206,8 +213,6 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
         if (this.processing) return
         this.processing = true
 
-        const logger = this.ensureLogger()
-
         const stopProcessing = () => {
             this.processing = false
             return this.disableInterval()
@@ -239,10 +244,10 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
                 .catch((err) => {
                     switch (err) {
                         case 'NO_RESPONSE':
-                            logger.error(
-                                __LOG_INTERNAL__.internalPrefix,
+                            this.logger.error(
+                                this.internalSettings.internalPrefix,
                                 'Could not send Discord webhook: No response',
-                                __LOG_INTERNAL__.specialMessages.doNotSendToDiscord
+                                this.smkey
                             )
                             return 0
                         case 'INVALID_URL':
@@ -251,11 +256,11 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
                     }
 
                     if (this.enabled)
-                        logger.error(
-                            __LOG_INTERNAL__.internalPrefix,
+                        this.logger.error(
+                            this.internalSettings.internalPrefix,
                             'Could not send Discord webhook',
-                            err,
-                            __LOG_INTERNAL__.specialMessages.doNotSendToDiscord
+                            this.smkey,
+                            err
                         )
 
                     return 0
@@ -266,14 +271,14 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
         return stopProcessing()
     }
 
+    // when this is called, the this.logger and this.exposedMethods are already set
     protected init(): Logger {
-        if (!this.logger) throw new Error('Logger not initialized')
         this.setup()
 
         if (!this.enabled) return this.logger
 
         if (this.settings.showLoadMessage)
-            this.logger.info(__LOG_INTERNAL__.internalPrefix, 'Discord plugin initialized!')
+            this.logger.info(this.internalSettings.internalPrefix, 'Discord plugin initialized!')
 
         if (this.enabledLevels.includes('warn')) {
             this.logger.onWarn((msgs) => {
@@ -297,6 +302,5 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
 
 export const discordWebhook = (options: DiscordWebhookOptions) => {
     const settings = discordWebhookOptionsSchema.parse(options)
-    const plugin = new DiscordWebhookPlugin(settings, queueManager)
-    return plugin
+    return new DiscordWebhookPlugin(settings, queueManager)
 }

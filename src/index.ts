@@ -5,7 +5,6 @@ import path from 'path'
 import { EventEmitter } from 'stream'
 import { inspect } from 'util'
 import { z } from 'zod'
-import { __LOG_INTERNAL__ } from './core/common'
 import LoggerPlugin from './core/plugin'
 import { LoggerColor, LoggerLevel } from './core/types'
 
@@ -71,8 +70,20 @@ export const configSchema = z.object({
         .default(DEFAULT_CONFIG.file)
 })
 
-type InferedConfigSchema = z.infer<typeof configSchema>
+export type InferedConfigSchema = z.infer<typeof configSchema>
 type LoggerOptions = z.input<typeof configSchema>
+
+export interface InternalSettings {
+    internalPrefix: string
+    internalPrefixColor: chalk.Chalk
+    excludeInspectTypes: string[]
+    toInspectJsonFormat: string[]
+    inspectConfig: {
+        depth: number
+        maxArrayLength: number
+        breakLength: number
+    }
+}
 
 export class Logger {
     private cfg: InferedConfigSchema
@@ -91,6 +102,56 @@ export class Logger {
     private estimatedSize: number = 0
     private maxSize: number = 0
     private useTimestampOnFile: boolean = false
+
+    private instanceId: string = Math.random().toString(36).slice(2)
+    private specialMessages: string[] = []
+
+    private specialMessageFormat = '{instanceId}::{message}'
+
+    private internalSettings: InternalSettings = {
+        internalPrefix: '[aya]',
+        internalPrefixColor: chalk.magenta,
+        excludeInspectTypes: ['string'],
+        toInspectJsonFormat: ['bigint', 'symbol', 'function'],
+        inspectConfig: {
+            depth: 2,
+            maxArrayLength: 10,
+            breakLength: 120
+        }
+    }
+
+    private addSpecialMessage(message: string) {
+        if (!this.specialMessages.includes(message)) this.specialMessages.push(message)
+    }
+
+    private hasSpecialMessage(specialMessage: string, messages: unknown[]) {
+        return messages.some((m) => {
+            if (typeof m !== 'string') return false
+            return messages.includes(this.getSpecialMessage(specialMessage))
+        })
+    }
+
+    private getSpecialMessage = (specialMessage: string) => {
+        return this.specialMessageFormat
+            .replaceAll('{instanceId}', this.instanceId)
+            .replaceAll('{message}', specialMessage)
+    }
+
+    private filterSpecialMessages(messages: unknown[]) {
+        return messages.filter((m) => {
+            if (typeof m !== 'string') return true
+            return !this.specialMessages.map(this.getSpecialMessage).includes(m)
+        })
+    }
+
+    private pluginExposedMethods = {
+        addSpecialMessage: this.addSpecialMessage.bind(this),
+        hasSpecialMessage: this.hasSpecialMessage.bind(this),
+        getSpecialMessage: this.getSpecialMessage.bind(this),
+        filterSpecialMessages: this.filterSpecialMessages.bind(this),
+        getConfig: () => this.cfg,
+        getInternalSettings: () => this.internalSettings
+    }
 
     private getOptions(config: object) {
         const options = configSchema.parse(config)
@@ -141,6 +202,10 @@ export class Logger {
                 this.finalize()
             })
         })
+    }
+
+    private finalize() {
+        if (this.fileStream) this.fileStream.close()
     }
 
     private checkPath() {
@@ -201,19 +266,12 @@ export class Logger {
         return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${ms}`
     }
 
-    private filterSpecialMessages(messages: unknown[]) {
-        return messages.filter((m: any) => {
-            if (typeof m !== 'string') return true
-            return !__LOG_INTERNAL__.specialMessagesKeys.includes(m)
-        })
-    }
-
     private parseMessage(messages: unknown[]) {
         return messages
             .map((m) => {
                 if (typeof m === 'object')
                     return inspect(m, {
-                        ...__LOG_INTERNAL__.inspectConfig,
+                        ...this.internalSettings.inspectConfig,
                         colors: true
                     })
                 return m
@@ -226,6 +284,7 @@ export class Logger {
         if (!this.fileStream) return
 
         const parsedMessage = this.parseMessage(this.filterSpecialMessages(messages))
+
         let msg: string = this.cfg.file.logFormat
             .replaceAll('{prefix}', this.cfg.prefix)
             .replaceAll('{level}', level.toUpperCase())
@@ -253,9 +312,9 @@ export class Logger {
             const stringified = JSON.stringify({
                 level,
                 messages: this.filterSpecialMessages(messages).map((x) => {
-                    if (__LOG_INTERNAL__.toInspectJsonFormat.includes(typeof x))
+                    if (this.internalSettings.toInspectJsonFormat.includes(typeof x))
                         return inspect(x, {
-                            ...__LOG_INTERNAL__.inspectConfig,
+                            ...this.internalSettings.inspectConfig,
                             colors: false
                         })
                     return x
@@ -314,20 +373,12 @@ export class Logger {
         this.warnCallbacks.push(cb)
     }
 
-    use(plugin: LoggerPlugin) {
+    use(plugin: any) {
         if (plugin instanceof LoggerPlugin) {
             this.plugins.push(plugin)
-            return plugin.apply(this)
+            return plugin.apply(this, this.pluginExposedMethods)
         }
         throw new TypeError('Plugin must be an instance of LoggerPlugin')
-    }
-
-    finalize() {
-        if (this.fileStream) this.fileStream.close()
-    }
-
-    get settings() {
-        return this.cfg
     }
 }
 
