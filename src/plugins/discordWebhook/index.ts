@@ -1,6 +1,5 @@
 import { choose, l, tryToRemovePrefixDelimiters } from '@/core/common.js'
 import LoggerPlugin from '@/core/plugin.js'
-import axios from 'axios'
 import { inspect } from 'node:util'
 import Logger, { InternalSettings } from '../..'
 import { discordWebhookOptionsSchema } from './options'
@@ -51,15 +50,12 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
     private setup = () => {
         l.info('DiscordWebhookPlugin created')
 
-        this.internalSettings = this.exposedMethods.getInternalSettings()
-        this.exposedMethods.addSpecialMessage(this.doNotLogSpecialMessage)
-        this.smkey = this.exposedMethods.getSpecialMessage(this.doNotLogSpecialMessage)
+        this.internalSettings = this.exm.internal()
+        this.exm.addSpecialMessage(this.doNotLogSpecialMessage)
+        this.smkey = this.exm.getSpecialMessage(this.doNotLogSpecialMessage)
 
         if (!this.settings.levels || !this.settings.levels.length) {
-            this.logger.error(
-                this.internalSettings.internalPrefix,
-                'No levels specified in Discord plugin, disabling it'
-            )
+            this.logger.error(this.exm.pfx(), 'No levels specified in Discord plugin, disabling it')
             this.enabled = false
             return
         }
@@ -79,7 +75,7 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
     }
 
     private shouldLog = (messages: unknown[]): boolean => {
-        return !this.exposedMethods.hasSpecialMessage(this.doNotLogSpecialMessage, messages)
+        return !this.exm.hasSpecialMessage(this.doNotLogSpecialMessage, messages)
     }
 
     private getCommonSettings = () => {
@@ -87,8 +83,7 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
             logger: this.logger,
             url: this.settings.url,
             username:
-                this.settings.username ||
-                tryToRemovePrefixDelimiters(this.exposedMethods.getConfig().prefix)
+                this.settings.username || tryToRemovePrefixDelimiters(this.exm.config().prefix)
         }
     }
 
@@ -96,7 +91,7 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
         if (!this.enabled) return
 
         this.logger.error(
-            this.internalSettings.internalPrefix,
+            this.exm.pfx(),
             'Invalid Discord webhook URL, disabling plugin',
             this.smkey
         )
@@ -154,29 +149,33 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
             const { url, username } = this.getCommonSettings()
             const avatarUrl = this.getAvatar()
 
-            axios
-                .post(url, {
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
                     username,
                     avatar_url: avatarUrl,
                     embeds: embedGroup
                 })
-                .then((res) => {
+            })
+                .then(async (res) => {
                     const { status, statusText } = res
 
                     if (status >= 200 && status < 300) return resolve()
 
-                    throw new Error(`${status} ${statusText}`)
+                    const errorText = await res.text()
+                    throw new Error(`${status} ${statusText} - ${errorText}`)
                 })
                 .catch((err) => {
-                    const res = err?.response
-                    if (!res) return reject(err.message || 'NO_RESPONSE')
+                    const error = err?.message || 'NO_RESPONSE'
 
-                    const { status, statusText } = res
-                    const { data } = res
+                    if (error.includes('400') || error.includes('404')) {
+                        return reject('INVALID_URL')
+                    }
 
-                    if (status === 400 || status === 404) return reject('INVALID_URL')
-
-                    reject(`${status} ${statusText} - ${data}`)
+                    return reject(error)
                 })
         })
     }
@@ -247,7 +246,6 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
                     switch (err) {
                         case 'NO_RESPONSE':
                             this.logger.error(
-                                this.internalSettings.internalPrefix,
                                 'Could not send Discord webhook: No response',
                                 this.smkey
                             )
@@ -259,7 +257,7 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
 
                     if (this.enabled)
                         this.logger.error(
-                            this.internalSettings.internalPrefix,
+                            this.exm.pfx(),
                             'Could not send Discord webhook',
                             this.smkey,
                             err
@@ -273,14 +271,14 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
         return stopProcessing()
     }
 
-    // when this is called, the this.logger and this.exposedMethods are already set
+    // when this is called, the this.logger and this.exm are already set
     protected init(): Logger {
         this.setup()
 
         if (!this.enabled) return this.logger
 
         if (this.settings.showLoadMessage)
-            this.logger.info(this.internalSettings.internalPrefix, 'Discord plugin initialized!')
+            this.logger.info(this.exm.pfx(), 'Discord plugin initialized!')
 
         if (this.enabledLevels.includes('warn')) {
             this.logger.onWarn((msgs) => {

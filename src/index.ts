@@ -120,6 +120,11 @@ export class Logger {
         }
     }
 
+    private ayaPfx = {
+        ayaColor: this.internalSettings.internalPrefixColor,
+        ayaMessage: this.internalSettings.internalPrefix
+    }
+
     private addSpecialMessage(message: string) {
         if (!this.specialMessages.includes(message)) this.specialMessages.push(message)
     }
@@ -149,8 +154,9 @@ export class Logger {
         hasSpecialMessage: this.hasSpecialMessage.bind(this),
         getSpecialMessage: this.getSpecialMessage.bind(this),
         filterSpecialMessages: this.filterSpecialMessages.bind(this),
-        getConfig: () => this.cfg,
-        getInternalSettings: () => this.internalSettings
+        config: () => this.cfg,
+        internal: () => this.internalSettings,
+        pfx: () => this.ayaPfx
     }
 
     private getOptions(config: object) {
@@ -209,7 +215,6 @@ export class Logger {
     }
 
     private checkPath() {
-        console.log('this.cfg.file.path', this.cfg.file.path)
         if (!fs.existsSync(this.cfg.file.path)) {
             console.log('creating path')
             fs.mkdirSync(this.cfg.file.path, { recursive: true })

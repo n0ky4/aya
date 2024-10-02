@@ -5,18 +5,19 @@ export type PluginExposedMethods = {
     hasSpecialMessage: (specialMessage: string, messages: unknown[]) => boolean
     getSpecialMessage: (specialMessage: string) => string
     filterSpecialMessages: (messages: unknown[]) => unknown[]
-    getConfig: () => InferedConfigSchema
-    getInternalSettings: () => InternalSettings
+    config: () => InferedConfigSchema
+    internal: () => InternalSettings
+    pfx: () => any
 }
 
 export default class LoggerPlugin {
     name: string = 'MyPlugin'
     protected logger!: Logger
-    protected exposedMethods!: PluginExposedMethods
+    protected exm!: PluginExposedMethods
 
     apply(logger: Logger, exposedMethods: PluginExposedMethods): Logger {
         this.logger = logger
-        this.exposedMethods = exposedMethods
+        this.exm = exposedMethods
         return this.init()
     }
 
