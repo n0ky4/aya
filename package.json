@@ -8,12 +8,12 @@
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/n0ky4/log"
+        "url": "https://github.com/n0ky4/aya"
     },
     "bugs": {
-        "url": "https://github.com/n0ky4/log/issues"
+        "url": "https://github.com/n0ky4/aya/issues"
     },
-    "homepage": "https://github.com/n0ky4/log#readme",
+    "homepage": "https://github.com/n0ky4/aya#readme",
     "license": "MIT",
     "keywords": [
         "logging",
