@@ -1,5 +1,6 @@
 import { choose, l, tryToRemovePrefixDelimiters } from '@/core/common.js'
 import LoggerPlugin from '@/core/plugin.js'
+import { MessageType } from '@/core/types'
 import { inspect } from 'node:util'
 import Logger, { InternalSettings } from '../..'
 import { discordWebhookOptionsSchema } from './options'
@@ -19,7 +20,7 @@ const queueManager = new QueueManager(GLOBAL_INTERVAL)
 
 interface BatchedMessage {
     level: string
-    messages: unknown[]
+    messages: MessageType[]
 }
 
 export class DiscordWebhookPlugin extends LoggerPlugin {
@@ -74,7 +75,7 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
         return choose(this.settings.avatarUrl) || undefined
     }
 
-    private shouldLog = (messages: unknown[]): boolean => {
+    private shouldLog = (messages: MessageType[]): boolean => {
         return !this.exm.hasSpecialMessage(this.doNotLogSpecialMessage, messages)
     }
 
@@ -116,7 +117,10 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
             discordWebhookOptionsSchema.shape.colors._def.defaultValue().error
     })
 
-    private processMessages = (embedModel: EmbedModelType, messages: unknown[]): EmbedType[] => {
+    private processMessages = (
+        embedModel: EmbedModelType,
+        messages: MessageType[]
+    ): EmbedType[] => {
         const embeds: EmbedType[] = []
         let msgs = messages
             .map((msg) => {
@@ -180,7 +184,7 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
         })
     }
 
-    private batchMessage = (level: string, messages: unknown[]) => {
+    private batchMessage = (level: string, messages: MessageType[]) => {
         l.info('Batching message...')
         if (!this.enabled) return
 

@@ -1,10 +1,11 @@
 import Logger, { InferedConfigSchema, InternalSettings } from '..'
+import { MessageType } from './types'
 
 export type PluginExposedMethods = {
     addSpecialMessage: (message: string) => void
-    hasSpecialMessage: (specialMessage: string, messages: unknown[]) => boolean
+    hasSpecialMessage: (specialMessage: string, messages: MessageType[]) => boolean
     getSpecialMessage: (specialMessage: string) => string
-    filterSpecialMessages: (messages: unknown[]) => unknown[]
+    filterSpecialMessages: (messages: MessageType[]) => MessageType[]
     config: () => InferedConfigSchema
     internal: () => InternalSettings
     pfx: () => any

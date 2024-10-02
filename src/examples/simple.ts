@@ -22,3 +22,11 @@ log.debug('this is a debug message')
 log.info("and i'm an info message!!")
 log.warn(chalk.yellow('warning!! danger ahead!!'))
 log.error(chalk.red('OH NOOOOO!! something went wrong!!'))
+
+log.info({
+    ayaMsg: "this is aya's message",
+    fgColor: 'magenta',
+    italic: true,
+    bold: true,
+    underline: true
+})

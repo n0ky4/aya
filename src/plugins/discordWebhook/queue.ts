@@ -1,5 +1,7 @@
+import { MessageType } from '@/core/types'
+
 export default class QueueManager {
-    private queue: unknown[] = []
+    private queue: MessageType[] = []
     private isProcessing = false
     private wait = 0
 

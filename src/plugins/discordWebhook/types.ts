@@ -1,3 +1,4 @@
+import { MessageType } from '@/core/types'
 import Logger from '@/index'
 import { z } from 'zod'
 import { discordWebhookOptionsSchema } from './options'
@@ -22,7 +23,7 @@ export interface SendWebhookOptions {
     url: string
     username: string
     avatarUrl: string | undefined
-    messages: unknown[]
+    messages: MessageType[]
     waitBetweenRequests?: number
 }
 

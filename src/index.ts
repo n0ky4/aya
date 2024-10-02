@@ -5,8 +5,10 @@ import path from 'path'
 import { EventEmitter } from 'stream'
 import { inspect } from 'util'
 import { z } from 'zod'
+import { getFormattedDate, pad } from './core/common'
+import { y } from './core/formatting'
 import LoggerPlugin from './core/plugin'
-import { LoggerColor, LoggerLevel } from './core/types'
+import { AyaMessage, Color, FgColor, LoggerLevel, MessageType } from './core/types'
 
 export const DEFAULT_CONFIG = {
     prefix: '(aya)',
@@ -52,11 +54,11 @@ export const configSchema = z.object({
     boldLevel: z.boolean().default(DEFAULT_CONFIG.boldLevel),
     colors: z
         .object({
-            prefix: z.custom<LoggerColor>().default(DEFAULT_CONFIG.colors.prefix),
-            debug: z.custom<LoggerColor>().default(DEFAULT_CONFIG.colors.debug),
-            info: z.custom<LoggerColor>().default(DEFAULT_CONFIG.colors.info),
-            warn: z.custom<LoggerColor>().default(DEFAULT_CONFIG.colors.warn),
-            error: z.custom<LoggerColor>().default(DEFAULT_CONFIG.colors.error)
+            prefix: z.custom<Color>().default(DEFAULT_CONFIG.colors.prefix),
+            debug: z.custom<Color>().default(DEFAULT_CONFIG.colors.debug),
+            info: z.custom<Color>().default(DEFAULT_CONFIG.colors.info),
+            warn: z.custom<Color>().default(DEFAULT_CONFIG.colors.warn),
+            error: z.custom<Color>().default(DEFAULT_CONFIG.colors.error)
         })
         .default(DEFAULT_CONFIG.colors),
     file: z
@@ -71,11 +73,11 @@ export const configSchema = z.object({
 })
 
 export type InferedConfigSchema = z.infer<typeof configSchema>
-type LoggerOptions = z.input<typeof configSchema>
+type AyaOptions = z.input<typeof configSchema>
 
 export interface InternalSettings {
     internalPrefix: string
-    internalPrefixColor: chalk.Chalk
+    internalPrefixColor: FgColor
     excludeInspectTypes: string[]
     toInspectJsonFormat: string[]
     inspectConfig: {
@@ -88,8 +90,8 @@ export interface InternalSettings {
 export class Logger {
     private cfg: InferedConfigSchema
     private em: EventEmitter
-    private errorCallbacks: ((messages: unknown[]) => void)[]
-    private warnCallbacks: ((messages: unknown[]) => void)[]
+    private errorCallbacks: ((messages: MessageType[]) => void)[]
+    private warnCallbacks: ((messages: MessageType[]) => void)[]
     private plugins: LoggerPlugin[] = []
 
     private useTimestamp: boolean
@@ -106,11 +108,15 @@ export class Logger {
     private instanceId: string = Math.random().toString(36).slice(2)
     private specialMessages: string[] = []
 
-    private specialMessageFormat = '{instanceId}::{message}'
+    private specialMessageFormat = '<{instanceId}::{message}>'
+
+    private ansiRegex =
+        // eslint-disable-next-line no-control-regex
+        /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g
 
     private internalSettings: InternalSettings = {
         internalPrefix: '[aya]',
-        internalPrefixColor: chalk.magenta,
+        internalPrefixColor: 'magenta',
         excludeInspectTypes: ['string'],
         toInspectJsonFormat: ['bigint', 'symbol', 'function'],
         inspectConfig: {
@@ -120,52 +126,13 @@ export class Logger {
         }
     }
 
-    private ayaPfx = {
-        ayaColor: this.internalSettings.internalPrefixColor,
-        ayaMessage: this.internalSettings.internalPrefix
-    }
+    private ayaPfx = y({
+        ayaMsg: this.internalSettings.internalPrefix,
+        fgColor: this.internalSettings.internalPrefixColor
+    })
 
-    private addSpecialMessage(message: string) {
-        if (!this.specialMessages.includes(message)) this.specialMessages.push(message)
-    }
-
-    private hasSpecialMessage(specialMessage: string, messages: unknown[]) {
-        return messages.some((m) => {
-            if (typeof m !== 'string') return false
-            return messages.includes(this.getSpecialMessage(specialMessage))
-        })
-    }
-
-    private getSpecialMessage = (specialMessage: string) => {
-        return this.specialMessageFormat
-            .replaceAll('{instanceId}', this.instanceId)
-            .replaceAll('{message}', specialMessage)
-    }
-
-    private filterSpecialMessages(messages: unknown[]) {
-        return messages.filter((m) => {
-            if (typeof m !== 'string') return true
-            return !this.specialMessages.map(this.getSpecialMessage).includes(m)
-        })
-    }
-
-    private pluginExposedMethods = {
-        addSpecialMessage: this.addSpecialMessage.bind(this),
-        hasSpecialMessage: this.hasSpecialMessage.bind(this),
-        getSpecialMessage: this.getSpecialMessage.bind(this),
-        filterSpecialMessages: this.filterSpecialMessages.bind(this),
-        config: () => this.cfg,
-        internal: () => this.internalSettings,
-        pfx: () => this.ayaPfx
-    }
-
-    private getOptions(config: object) {
-        const options = configSchema.parse(config)
-        return options
-    }
-
-    constructor(options?: LoggerOptions) {
-        this.cfg = this.getOptions(options || {})
+    constructor(options?: AyaOptions) {
+        this.cfg = configSchema.parse(options || {})
 
         this.em = new EventEmitter()
         this.errorCallbacks = []
@@ -210,10 +177,43 @@ export class Logger {
         })
     }
 
-    private finalize() {
-        if (this.fileStream) this.fileStream.close()
+    // #region special messages
+    private addSpecialMessage(message: string) {
+        if (!this.specialMessages.includes(message)) this.specialMessages.push(message)
     }
 
+    private hasSpecialMessage(specialMessage: string, messages: MessageType[]) {
+        return messages.some((m) => {
+            if (typeof m !== 'string') return false
+            return messages.includes(this.getSpecialMessage(specialMessage))
+        })
+    }
+
+    private getSpecialMessage = (specialMessage: string) => {
+        return this.specialMessageFormat
+            .replaceAll('{instanceId}', this.instanceId)
+            .replaceAll('{message}', specialMessage)
+    }
+
+    private filterSpecialMessages(messages: MessageType[]) {
+        return messages.filter((m) => {
+            if (typeof m !== 'string') return true
+            return !this.specialMessages.map(this.getSpecialMessage).includes(m)
+        })
+    }
+    // #endregion
+
+    private pluginExposedMethods = {
+        addSpecialMessage: this.addSpecialMessage.bind(this),
+        hasSpecialMessage: this.hasSpecialMessage.bind(this),
+        getSpecialMessage: this.getSpecialMessage.bind(this),
+        filterSpecialMessages: this.filterSpecialMessages.bind(this),
+        config: () => this.cfg,
+        internal: () => this.internalSettings,
+        pfx: () => this.ayaPfx
+    }
+
+    // #region file methods
     private checkPath() {
         if (!fs.existsSync(this.cfg.file.path)) {
             console.log('creating path')
@@ -224,11 +224,11 @@ export class Logger {
     private getFileName() {
         return this.cfg.file.nameFormat
             .replaceAll('YYYY', new Date().getFullYear().toString())
-            .replaceAll('MM', this.pad(new Date().getMonth() + 1))
-            .replaceAll('DD', this.pad(new Date().getDate()))
-            .replaceAll('HH', this.pad(new Date().getHours()))
-            .replaceAll('mm', this.pad(new Date().getMinutes()))
-            .replaceAll('ss', this.pad(new Date().getSeconds()))
+            .replaceAll('MM', pad(new Date().getMonth() + 1))
+            .replaceAll('DD', pad(new Date().getDate()))
+            .replaceAll('HH', pad(new Date().getHours()))
+            .replaceAll('mm', pad(new Date().getMinutes()))
+            .replaceAll('ss', pad(new Date().getSeconds()))
     }
 
     private makeNewFile() {
@@ -244,6 +244,11 @@ export class Logger {
             flags: 'a'
         })
     }
+    // #endregion
+
+    private finalize() {
+        if (this.fileStream) this.fileStream.close()
+    }
 
     private setupCallbacks() {
         this.em.on('error', (messages) => {
@@ -255,25 +260,19 @@ export class Logger {
         })
     }
 
-    private pad(n: number) {
-        return n.toString().padStart(2, '0')
+    //                                     👇 this is so cool i didnt know about this...!!
+    private isAyaMessage = (message: any): message is AyaMessage => {
+        return (message as AyaMessage).ayaMsg !== undefined
     }
 
-    private getFormattedDate() {
-        const date = new Date()
-        const year = date.getFullYear()
-        const month = this.pad(date.getMonth() + 1)
-        const day = this.pad(date.getDate())
-        const hours = this.pad(date.getHours())
-        const minutes = this.pad(date.getMinutes())
-        const seconds = this.pad(date.getSeconds())
-        const ms = date.getMilliseconds()
-        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${ms}`
+    private removeAnsiFormatting(str: string) {
+        return str.replace(this.ansiRegex, '')
     }
 
-    private parseMessage(messages: unknown[]) {
+    private parseMessage(messages: MessageType[], noFormatting: boolean = false) {
         return messages
             .map((m) => {
+                if (this.isAyaMessage(m)) return noFormatting ? m.ayaMsg : y(m)
                 if (typeof m === 'object')
                     return inspect(m, {
                         ...this.internalSettings.inspectConfig,
@@ -284,21 +283,25 @@ export class Logger {
             .join(' ')
     }
 
-    private logToFile(level: LoggerLevel, messages: unknown[]) {
+    private logToFile(level: LoggerLevel, messages: MessageType[]) {
         if (!this.useLogFile) return
         if (!this.fileStream) return
 
-        const parsedMessage = this.parseMessage(this.filterSpecialMessages(messages))
+        const parsedMessage = this.removeAnsiFormatting(
+            this.parseMessage(this.filterSpecialMessages(messages), true)
+        )
 
         let msg: string = this.cfg.file.logFormat
             .replaceAll('{prefix}', this.cfg.prefix)
             .replaceAll('{level}', level.toUpperCase())
             .replaceAll('{message}', parsedMessage)
 
-        if (this.useTimestampOnFile) msg = msg.replaceAll('{timestamp}', this.getFormattedDate())
+        if (this.useTimestampOnFile) msg = msg.replaceAll('{timestamp}', getFormattedDate())
 
-        this.fileStream.write(msg + '\n')
-        this.estimatedSize += Buffer.byteLength(msg)
+        const toWrite = msg + '\n'
+
+        this.fileStream.write(toWrite)
+        this.estimatedSize += Buffer.byteLength(toWrite)
 
         if (this.estimatedSize >= this.maxSize) {
             this.makeNewFile()
@@ -306,7 +309,7 @@ export class Logger {
         }
     }
 
-    private log(level: LoggerLevel, messages: unknown[]) {
+    private log(level: LoggerLevel, messages: MessageType[]) {
         const { levels, format, logFormat, levelPrefixes, prefix, colors, boldLevel } = this.cfg
 
         if (!levels.includes(level)) return
@@ -314,9 +317,10 @@ export class Logger {
         this.logToFile(level, messages)
 
         if (format === 'json') {
-            const stringified = JSON.stringify({
+            const json = JSON.stringify({
                 level,
                 messages: this.filterSpecialMessages(messages).map((x) => {
+                    if (this.isAyaMessage(x)) return (x as MessageType).ayaMsg
                     if (this.internalSettings.toInspectJsonFormat.includes(typeof x))
                         return inspect(x, {
                             ...this.internalSettings.inspectConfig,
@@ -327,7 +331,7 @@ export class Logger {
                 timestamp: new Date().toISOString()
             })
 
-            console.log(stringified)
+            process.stdout.write(json + '\n')
         } else {
             const lvl = levelPrefixes[level]
             const parsedMessage = this.parseMessage(this.filterSpecialMessages(messages))
@@ -340,7 +344,7 @@ export class Logger {
                 )
                 .replaceAll('{message}', parsedMessage)
 
-            if (this.useTimestamp) msg = msg.replaceAll('{timestamp}', this.getFormattedDate())
+            if (this.useTimestamp) msg = msg.replaceAll('{timestamp}', getFormattedDate())
 
             switch (level) {
                 case 'error':
@@ -354,27 +358,28 @@ export class Logger {
         }
     }
 
-    debug(...messages: unknown[]) {
+    // #region public methods
+    debug(...messages: MessageType[]) {
         this.log('debug', messages)
     }
 
-    info(...messages: unknown[]) {
+    info(...messages: MessageType[]) {
         this.log('info', messages)
     }
 
-    warn(...messages: unknown[]) {
+    warn(...messages: MessageType[]) {
         this.log('warn', messages)
     }
 
-    error(...messages: unknown[]) {
+    error(...messages: MessageType[]) {
         this.log('error', messages)
     }
 
-    onError(cb: (messages: unknown[]) => void) {
+    onError(cb: (messages: MessageType[]) => void) {
         this.errorCallbacks.push(cb)
     }
 
-    onWarn(cb: (messages: unknown[]) => void) {
+    onWarn(cb: (messages: MessageType[]) => void) {
         this.warnCallbacks.push(cb)
     }
 
@@ -385,6 +390,7 @@ export class Logger {
         }
         throw new TypeError('Plugin must be an instance of LoggerPlugin')
     }
+    // #endregion
 }
 
 export default Logger
