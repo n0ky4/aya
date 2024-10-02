@@ -6,7 +6,7 @@ import { EventEmitter } from 'stream'
 import { inspect } from 'util'
 import { z } from 'zod'
 import { getFormattedDate, pad } from './core/common'
-import { y } from './core/formatting'
+import { y } from './core/format'
 import LoggerPlugin from './core/plugin'
 import { AyaMessage, Color, FgColor, LoggerLevel, MessageType } from './core/types'
 
