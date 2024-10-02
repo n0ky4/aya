@@ -235,10 +235,9 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
 
         const stopProcessing = () => {
             this.processing = false
-            return this.disableInterval()
         }
 
-        if (!this.enabled || this.batchMessages.length === 0) return stopProcessing()
+        if (!this.enabled) return stopProcessing()
 
         const embeds: EmbedType[] = []
 
@@ -255,7 +254,6 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
         }
 
         if (embeds.length === 0) return stopProcessing()
-
         const chunks = this.getEmbedChunks(embeds, 10)
 
         this.qmanager.push(() =>
@@ -286,8 +284,9 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
                 })
         )
 
-        l.info('Batch messages processed')
-        return stopProcessing()
+        stopProcessing()
+
+        if (this.batchMessages.length === 0) this.disableInterval()
     }
 
     // when this is called, the this.logger and this.exm are already set
