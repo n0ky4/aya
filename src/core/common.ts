@@ -1,7 +1,7 @@
 import { MessageType } from './types'
 
 // little logger used for debugging
-const verbose = false
+const verbose = process.env.__USE_A_DEBUG_LOGGER_FOR_A_LOGGING_LIBRARY_CALLED_AYA__ === 'true'
 export const l = {
     info: (...msgs: MessageType[]) => (verbose ? console.log('[info]', ...msgs) : null),
     warn: (...msgs: MessageType[]) => (verbose ? console.log('[warn]', ...msgs) : null),
