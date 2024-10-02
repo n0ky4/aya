@@ -3,7 +3,7 @@ import LoggerPlugin from '@/core/plugin.js'
 import { MessageType } from '@/core/types'
 import { inspect } from 'node:util'
 import Logger, { InternalSettings } from '../..'
-import { discordWebhookOptionsSchema } from './options'
+import { DEFAULT_DISCORD_WEBHOOK_OPTIONS, discordWebhookOptionsSchema } from './options'
 import QueueManager from './queue'
 import {
     DiscordWebhookOptions,
@@ -46,6 +46,29 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
         super()
         this.qmanager = queueManager
         this.settings = settings
+    }
+
+    private isValidColor = (color: number): boolean => {
+        return !isNaN(color) && color >= 0 && color <= 0xffffff
+    }
+
+    private parseColor = (color: string | number): number => {
+        if (typeof color === 'number') return color
+
+        let parsed
+        if (color.startsWith('#')) parsed = parseInt(color.slice(1), 16)
+        else parsed = parseInt(color, 16)
+
+        return this.isValidColor(parsed) ? parsed : 0x000000
+    }
+
+    private getColor = (color: 'warn' | 'error'): number => {
+        const colorValue =
+            this.settings.colors?.[color] ||
+            discordWebhookOptionsSchema.shape.colors._def.defaultValue()[color] ||
+            0
+
+        return this.parseColor(colorValue)
     }
 
     private setup = () => {
@@ -100,21 +123,13 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
     }
 
     private getWarnEmbedModel = (): EmbedModelType => ({
-        title:
-            this.settings?.labels?.warn ||
-            discordWebhookOptionsSchema.shape.labels._def.defaultValue().warn,
-        color:
-            this.settings?.colors?.warn ||
-            discordWebhookOptionsSchema.shape.colors._def.defaultValue().warn
+        title: this.settings?.labels?.warn || DEFAULT_DISCORD_WEBHOOK_OPTIONS.labels.warn,
+        color: this.getColor('warn')
     })
 
     private getErrorEmbedModel = (): EmbedModelType => ({
-        title:
-            this.settings?.labels?.error ||
-            discordWebhookOptionsSchema.shape.labels._def.defaultValue().error,
-        color:
-            this.settings?.colors?.error ||
-            discordWebhookOptionsSchema.shape.colors._def.defaultValue().error
+        title: this.settings?.labels?.error || DEFAULT_DISCORD_WEBHOOK_OPTIONS.labels.error,
+        color: this.getColor('error')
     })
 
     private processMessages = (
