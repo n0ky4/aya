@@ -283,56 +283,63 @@ export class Logger {
             .join(' ')
     }
 
-    private logToFile(level: LoggerLevel, messages: MessageType[]) {
-        if (!this.useLogFile) return
-        if (!this.fileStream) return
+    private async logToFile(level: LoggerLevel, messages: MessageType[]) {
+        return new Promise<void>((resolve) => {
+            if (!this.useLogFile) return resolve()
+            if (!this.fileStream) return resolve()
 
-        const parsedMessage = this.removeAnsiFormatting(
-            this.parseMessage(this.filterSpecialMessages(messages), true)
-        )
+            const parsedMessage = this.removeAnsiFormatting(
+                this.parseMessage(this.filterSpecialMessages(messages), true)
+            )
 
-        let msg: string = this.cfg.file.logFormat
-            .replaceAll('{prefix}', this.cfg.prefix)
-            .replaceAll('{level}', level.toUpperCase())
-            .replaceAll('{message}', parsedMessage)
+            let msg: string = this.cfg.file.logFormat
+                .replaceAll('{prefix}', this.cfg.prefix)
+                .replaceAll('{level}', level.toUpperCase())
+                .replaceAll('{message}', parsedMessage)
 
-        if (this.useTimestampOnFile) msg = msg.replaceAll('{timestamp}', getFormattedDate())
+            if (this.useTimestampOnFile) msg = msg.replaceAll('{timestamp}', getFormattedDate())
 
-        const toWrite = msg + '\n'
+            const toWrite = msg + '\n'
 
-        this.fileStream.write(toWrite)
-        this.estimatedSize += Buffer.byteLength(toWrite)
+            this.fileStream.write(toWrite)
+            this.estimatedSize += Buffer.byteLength(toWrite)
 
-        if (this.estimatedSize >= this.maxSize) {
-            this.makeNewFile()
-            this.estimatedSize = 0
-        }
+            if (this.estimatedSize >= this.maxSize) {
+                this.makeNewFile()
+                this.estimatedSize = 0
+            }
+
+            return resolve()
+        })
     }
 
-    private log(level: LoggerLevel, messages: MessageType[]) {
-        const { levels, format, logFormat, levelPrefixes, prefix, colors, boldLevel } = this.cfg
+    private async log(level: LoggerLevel, messages: MessageType[]) {
+        return new Promise<void>((resolve) => {
+            if (!this.cfg.levels.includes(level)) return resolve()
 
-        if (!levels.includes(level)) return
+            const { format, logFormat, levelPrefixes, prefix, colors, boldLevel } = this.cfg
 
-        this.logToFile(level, messages)
+            this.logToFile(level, messages)
 
-        if (format === 'json') {
-            const json = JSON.stringify({
-                level,
-                messages: this.filterSpecialMessages(messages).map((x) => {
-                    if (this.isAyaMessage(x)) return (x as MessageType).ayaMsg
-                    if (this.internalSettings.toInspectJsonFormat.includes(typeof x))
-                        return inspect(x, {
-                            ...this.internalSettings.inspectConfig,
-                            colors: false
-                        })
-                    return x
-                }),
-                timestamp: new Date().toISOString()
-            })
+            if (format === 'json') {
+                const json = JSON.stringify({
+                    level,
+                    messages: this.filterSpecialMessages(messages).map((x) => {
+                        if (this.isAyaMessage(x)) return (x as MessageType).ayaMsg
+                        if (this.internalSettings.toInspectJsonFormat.includes(typeof x))
+                            return inspect(x, {
+                                ...this.internalSettings.inspectConfig,
+                                colors: false
+                            })
+                        return x
+                    }),
+                    timestamp: new Date().toISOString()
+                })
 
-            process.stdout.write(json + '\n')
-        } else {
+                process.stdout.write(json + '\n')
+                return resolve()
+            }
+
             const lvl = levelPrefixes[level]
             const parsedMessage = this.parseMessage(this.filterSpecialMessages(messages))
 
@@ -354,25 +361,27 @@ export class Logger {
                     this.em.emit('warn', messages)
                     break
             }
+
             console.log(msg)
-        }
+            return resolve()
+        })
     }
 
     // #region public methods
-    debug(...messages: MessageType[]) {
-        this.log('debug', messages)
+    async debug(...messages: MessageType[]) {
+        return this.log('debug', messages)
     }
 
-    info(...messages: MessageType[]) {
-        this.log('info', messages)
+    async info(...messages: MessageType[]) {
+        return this.log('info', messages)
     }
 
-    warn(...messages: MessageType[]) {
-        this.log('warn', messages)
+    async warn(...messages: MessageType[]) {
+        return this.log('warn', messages)
     }
 
-    error(...messages: MessageType[]) {
-        this.log('error', messages)
+    async error(...messages: MessageType[]) {
+        return this.log('error', messages)
     }
 
     onError(cb: (messages: MessageType[]) => void) {
