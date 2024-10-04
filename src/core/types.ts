@@ -9,7 +9,7 @@ export type BgColor = typeof BackgroundColor
 export type Color = FgColor | BgColor
 
 export interface AyaMessage {
-    ayaMsg: string
+    ayaMsg: string | boolean | number
     fgColor?: FgColor
     bgColor?: BgColor
     bold?: boolean

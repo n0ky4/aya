@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Logger from '../src'
 import LoggerPlugin from '../src/core/plugin'
+import { AyaMessage } from '../src/core/types'
 
 describe('Logger', () => {
     let logger: Logger
@@ -53,6 +54,52 @@ describe('Logger', () => {
 
         it('should throw an error if plugin is not an instance of LoggerPlugin', () => {
             expect(() => logger.use({} as LoggerPlugin)).toThrow(TypeError)
+        })
+    })
+
+    describe('is aya message', () => {
+        it('should return true for a valid AyaMessage', () => {
+            const validMessage: AyaMessage = {
+                ayaMsg: 'Hello, World!',
+                fgColor: 'red',
+                underline: true,
+                bold: true
+            }
+
+            expect(logger['isAyaMessage'](validMessage)).toBe(true)
+        })
+
+        it('should return false for a message without ayaMsg', () => {
+            const invalidMessage = {
+                fgColor: 'red',
+                bgColor: 'blue',
+                bold: true
+            }
+
+            expect(logger['isAyaMessage'](invalidMessage)).toBe(false)
+        })
+
+        it('should return false for a non-object message', () => {
+            expect(logger['isAyaMessage']('not an object')).toBe(false)
+            expect(logger['isAyaMessage'](null)).toBe(false)
+            expect(logger['isAyaMessage'](undefined)).toBe(false)
+        })
+
+        it('should return false for an empty object', () => {
+            expect(logger['isAyaMessage']({})).toBe(false)
+        })
+
+        it('should return true for a message with ayaMsg as a non-string', () => {
+            const validMessage: AyaMessage = {
+                ayaMsg: 123,
+                fgColor: 'red',
+                underline: true,
+                bold: true
+            }
+            expect(logger['isAyaMessage'](validMessage)).toBe(true)
+
+            validMessage.ayaMsg = true
+            expect(logger['isAyaMessage'](validMessage)).toBe(true)
         })
     })
 })

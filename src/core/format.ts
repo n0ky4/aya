@@ -10,5 +10,5 @@ export const y = (cfg: AyaMessage): string => {
     if (cfg.underline) formatter = formatter.underline
     if (cfg.dim) formatter = formatter.dim
     if (cfg.inverse) formatter = formatter.inverse
-    return formatter(cfg.ayaMsg)
+    return formatter(cfg.ayaMsg?.toString())
 }
