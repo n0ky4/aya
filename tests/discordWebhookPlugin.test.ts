@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { sleep } from '../src/core/common'
+import DiscordQueueManager from '../src/plugins/discordWebhook/queue'
 import Logger from './../src/index'
 import { discordWebhook, DiscordWebhookPlugin } from './../src/plugins/discordWebhook'
 import { DiscordWebhookOptions } from './../src/plugins/discordWebhook/types'
@@ -103,5 +104,61 @@ describe('DiscordWebhookPlugin', () => {
 
         expect(sendEmbedGroupSpy).toHaveBeenCalled()
         expect(result).toBeUndefined()
+    })
+})
+
+describe('DiscordQueueManager Singleton', () => {
+    it('should create only one instance', () => {
+        const instance1 = DiscordQueueManager.getInstance()
+        const instance2 = DiscordQueueManager.getInstance()
+        expect(instance1).toBe(instance2)
+    })
+
+    it('should push functions into the queue and process them', async () => {
+        const queueManager = DiscordQueueManager.getInstance()
+        const mockFunction1 = vi.fn(() => Promise.resolve(0))
+        const mockFunction2 = vi.fn(() => Promise.resolve(100))
+
+        queueManager.push(mockFunction1)
+        queueManager.push(mockFunction2)
+
+        await new Promise((resolve) => setTimeout(resolve, 150))
+
+        expect(mockFunction1).toHaveBeenCalled()
+        expect(mockFunction2).toHaveBeenCalled()
+    })
+
+    it('should respect wait times between processing functions', async () => {
+        const queueManager = DiscordQueueManager.getInstance()
+        const startTime = Date.now()
+
+        const mockFunction1 = vi.fn(() => Promise.resolve(0))
+        const mockFunction2 = vi.fn(() => Promise.resolve(100))
+
+        queueManager.push(mockFunction1)
+        queueManager.push(mockFunction2)
+
+        await new Promise((resolve) => setTimeout(resolve, 150))
+
+        const elapsedTime = Date.now() - startTime
+        expect(elapsedTime).toBeGreaterThanOrEqual(100)
+    })
+
+    it('should process functions in the order they were added', async () => {
+        const queueManager = DiscordQueueManager.getInstance()
+        const order: number[] = []
+
+        queueManager.push(() => {
+            order.push(1)
+            return Promise.resolve(0)
+        })
+        queueManager.push(() => {
+            order.push(2)
+            return Promise.resolve(0)
+        })
+
+        await new Promise((resolve) => setTimeout(resolve, 150))
+
+        expect(order).toEqual([1, 2])
     })
 })

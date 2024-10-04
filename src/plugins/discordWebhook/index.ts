@@ -4,7 +4,7 @@ import { MessageType } from '@/core/types'
 import { inspect } from 'node:util'
 import Logger, { InternalSettings } from '../..'
 import { DEFAULT_DISCORD_WEBHOOK_OPTIONS, discordWebhookOptionsSchema } from './options'
-import QueueManager from './queue'
+import DiscordQueueManager from './queue'
 import {
     DiscordWebhookOptions,
     EmbedModelType,
@@ -12,16 +12,12 @@ import {
     InferedDiscordWebhookOptions
 } from './types'
 
-export const GLOBAL_INTERVAL = 1000
-
-// add a global queue manager, because maybe the user wants to use multiple logger instances,
-// and if we create a new queue manager for each instance, we could get rate limited by Discord api
-const queueManager = new QueueManager(GLOBAL_INTERVAL)
-
 interface BatchedMessage {
     level: string
     messages: MessageType[]
 }
+
+export const GLOBAL_INTERVAL = 1000
 
 export class DiscordWebhookPlugin extends LoggerPlugin {
     name: string = 'DiscordWebhook'
@@ -29,7 +25,7 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
     private settings: DiscordWebhookOptions
     private enabled = true
     private enabledLevels: string[] = []
-    private qmanager: QueueManager
+    private qmanager: DiscordQueueManager
     private batchMessages: BatchedMessage[] = []
 
     private processing = false
@@ -42,7 +38,7 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
 
     private internalSettings!: InternalSettings
 
-    constructor(settings: InferedDiscordWebhookOptions, queueManager: QueueManager) {
+    constructor(settings: InferedDiscordWebhookOptions, queueManager: DiscordQueueManager) {
         super()
         this.qmanager = queueManager
         this.settings = settings
@@ -320,5 +316,6 @@ export class DiscordWebhookPlugin extends LoggerPlugin {
 
 export const discordWebhook = (options: DiscordWebhookOptions) => {
     const settings = discordWebhookOptionsSchema.parse(options)
+    const queueManager = DiscordQueueManager.getInstance()
     return new DiscordWebhookPlugin(settings, queueManager)
 }
