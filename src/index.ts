@@ -6,6 +6,7 @@ import { EventEmitter } from 'stream'
 import { inspect } from 'util'
 import { z } from 'zod'
 import { getFormattedDate, pad } from './core/common'
+import { ExitHandler } from './core/exitHandler'
 import { y } from './core/format'
 import LoggerPlugin from './core/plugin'
 import { AyaMessage, Color, FgColor, LoggerLevel, MessageType } from './core/types'
@@ -87,22 +88,6 @@ export interface InternalSettings {
     }
 }
 
-const EXIT_EVENTS = [
-    'exit',
-    'SIGINT',
-    'SIGUSR1',
-    'SIGUSR2',
-    'uncaughtException',
-    'SIGTERM'
-] as const
-
-const globalExitCallbacks: (() => void)[] = []
-EXIT_EVENTS.forEach((event) => {
-    process.on(event, () => {
-        globalExitCallbacks.forEach((cb) => cb())
-    })
-})
-
 export class Logger {
     private cfg: InferedConfigSchema
     private em: EventEmitter
@@ -178,7 +163,7 @@ export class Logger {
         this.setupCallbacks()
 
         // hook in exit event
-        globalExitCallbacks.push(() => this.finalize())
+        ExitHandler.getInstance().addCallback(this.finalize)
     }
 
     // #region special messages
