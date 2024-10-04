@@ -87,6 +87,22 @@ export interface InternalSettings {
     }
 }
 
+const EXIT_EVENTS = [
+    'exit',
+    'SIGINT',
+    'SIGUSR1',
+    'SIGUSR2',
+    'uncaughtException',
+    'SIGTERM'
+] as const
+
+const globalExitCallbacks: (() => void)[] = []
+EXIT_EVENTS.forEach((event) => {
+    process.on(event, () => {
+        globalExitCallbacks.forEach((cb) => cb())
+    })
+})
+
 export class Logger {
     private cfg: InferedConfigSchema
     private em: EventEmitter
@@ -162,19 +178,7 @@ export class Logger {
         this.setupCallbacks()
 
         // hook in exit event
-        const EXIT_EVENTS = [
-            'exit',
-            'SIGINT',
-            'SIGUSR1',
-            'SIGUSR2',
-            'uncaughtException',
-            'SIGTERM'
-        ] as const
-        EXIT_EVENTS.forEach((event) => {
-            process.on(event, () => {
-                this.finalize()
-            })
-        })
+        globalExitCallbacks.push(() => this.finalize())
     }
 
     // #region special messages
@@ -215,10 +219,8 @@ export class Logger {
 
     // #region file methods
     private checkPath() {
-        if (!fs.existsSync(this.cfg.file.path)) {
-            console.log('creating path')
+        if (!fs.existsSync(this.cfg.file.path))
             fs.mkdirSync(this.cfg.file.path, { recursive: true })
-        }
     }
 
     private getFileName() {
@@ -262,7 +264,8 @@ export class Logger {
 
     //                                     👇 this is so cool i didnt know about this...!!
     private isAyaMessage = (message: any): message is AyaMessage => {
-        return (message as AyaMessage).ayaMsg !== undefined
+        if (!message || typeof message !== 'object') return false
+        return !!(message as AyaMessage)?.ayaMsg
     }
 
     private removeAnsiFormatting(str: string) {
