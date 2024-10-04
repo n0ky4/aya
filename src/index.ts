@@ -221,7 +221,7 @@ export class Logger {
     private makeNewFile() {
         this.fileIndex++
         this.filePath = path.join(this.cfg.file.path, `${this.fileBaseName}_${this.fileIndex}`)
-        if (this.fileStream) this.fileStream.close()
+        this.finalize()
         this.fileStream = this.createWriteStream()
     }
 
@@ -234,7 +234,7 @@ export class Logger {
     // #endregion
 
     private finalize() {
-        if (this.fileStream) this.fileStream.close()
+        if (this?.fileStream) this.fileStream.close()
     }
 
     private setupCallbacks() {
